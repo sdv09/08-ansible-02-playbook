@@ -32,5 +32,39 @@
     - name: Create database
       ansible.builtin.command: "clickhouse-client -q 'create database logs;'"
       register: create_db
-      failed_when: create_db.rc != 0 and create_db.rc !=82
+      failed_when: create_db.rc != 0 and create_db.rc != 82
       changed_when: create_db.rc == 0
+
+- name: Install Vector
+  hosts: vector
+  handlers:
+    - name: Restart Vector service
+      become: true
+      ansible.builtin.service:
+        name: vector
+        state: restarted
+  tasks:
+    - name: install vector
+      tags: install
+      block:
+        - name: Get vector distrib
+          become: true
+          ansible.builtin.get_url:
+            url: "{{ vector_deb_package }}"
+            dest: "/tmp/vector_distr.deb"
+        - name: Install vector
+          become: true
+          ansible.builtin.apt:
+            deb: /tmp/vector_distr.deb
+    - name: configure vector
+      tags: configure
+      block:
+        - name: Configure Vector
+          become: true
+          ansible.builtin.template:
+            src: "vector.toml.j2"
+            dest: "/etc/vector/vector.toml"
+            owner: root
+            group: root
+            mode: 0644
+          notify: Restart Vector service
